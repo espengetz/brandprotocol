@@ -9,13 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "@supabase/supabase-js": "^2.39.0",
     "lucide-react": "^0.263.1",
-    "mcp-handler": "^0.0.6",
+    "mcp-handler": "^1.0.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.0",
-    "zod": "^3.25.0"
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
