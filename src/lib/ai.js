@@ -7,28 +7,36 @@ export const extractFromUrl = async (url) => {
     body: JSON.stringify({ url })
   });
   
+  const data = await response.json();
+  
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to extract from URL');
+    throw new Error(data.error || 'Failed to extract from URL');
   }
   
-  const data = await response.json();
   return data.content;
 };
 
 export const extractBrandData = async (content, isPdf = false, base64Data = null) => {
+  // Check file size before sending
+  if (base64Data) {
+    const sizeInMB = (base64Data.length * 0.75) / (1024 * 1024);
+    if (sizeInMB > 20) {
+      throw new Error(`File too large (${sizeInMB.toFixed(1)}MB). Please use a PDF under 20MB.`);
+    }
+  }
+
   const response = await fetch("/api/extract-brand", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content, isPdf, base64Data })
   });
 
+  const data = await response.json();
+
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to extract brand data');
+    throw new Error(data.error || 'Failed to extract brand data');
   }
 
-  const data = await response.json();
   return data.brandData;
 };
 
