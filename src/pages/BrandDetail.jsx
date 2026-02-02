@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Server, ArrowLeft, Plus, Upload, Link, FileText, Trash2, Copy, Check, Loader2, X, Eye } from 'lucide-react';
+import { Server, ArrowLeft, Plus, Upload, Link, FileText, Trash2, Copy, Check, Loader2, X, Eye, Image } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { getBrand, getBrandSources, addBrandSource, deleteBrandSource, uploadFile } from '../lib/supabase';
-import { extractFromUrl, extractBrandData, readFileAsBase64, readFileAsText } from '../lib/ai';
+import { getBrand, getBrandSources, addBrandSource, deleteBrandSource } from '../lib/supabase';
+import { extractFromUrl, extractBrandData, extractAndStoreAssets, readFileAsBase64, readFileAsText } from '../lib/ai';
 
 export default function BrandDetail() {
   const { brandId } = useParams();
@@ -52,14 +52,20 @@ export default function BrandDetail() {
       let content;
       let sourceName;
       let sourceType;
+      let extractedAssets = [];
 
       if (addMode === 'url') {
-        setStatus('Fetching content...');
+        setStatus('Fetching content and discovering assets...');
         sourceName = url;
         sourceType = 'url';
-        const rawContent = await extractFromUrl(url);
-        setStatus('Extracting brand information...');
-        content = await extractBrandData(rawContent);
+        
+        // Extract content and discover assets
+        const extractResult = await extractFromUrl(url);
+        extractedAssets = extractResult.assets || [];
+        
+        setStatus(`Found ${extractedAssets.length} assets. Extracting brand information...`);
+        content = await extractBrandData(extractResult.content);
+        
       } else if (file) {
         sourceName = file.name;
         sourceType = file.type === 'application/pdf' ? 'pdf' : 'document';
@@ -67,7 +73,7 @@ export default function BrandDetail() {
         setStatus('Reading file...');
         if (file.type === 'application/pdf') {
           const base64 = await readFileAsBase64(file);
-          setStatus('Extracting brand information...');
+          setStatus('Extracting brand information from PDF...');
           content = await extractBrandData('', true, base64);
         } else {
           const text = await readFileAsText(file);
@@ -76,7 +82,7 @@ export default function BrandDetail() {
         }
       }
 
-      setStatus('Saving...');
+      setStatus('Saving source...');
       const { data, error: saveError } = await addBrandSource(brandId, {
         type: sourceType,
         name: sourceName,
@@ -84,6 +90,18 @@ export default function BrandDetail() {
       });
 
       if (saveError) throw saveError;
+
+      // Now download and store assets if we found any
+      if (extractedAssets.length > 0) {
+        setStatus(`Downloading ${Math.min(extractedAssets.length, 20)} assets...`);
+        try {
+          const assetResult = await extractAndStoreAssets(brandId, data.id, extractedAssets);
+          console.log(`Stored ${assetResult.stored} assets`);
+        } catch (assetError) {
+          console.error('Asset extraction error (non-fatal):', assetError);
+          // Don't fail the whole operation if asset extraction fails
+        }
+      }
 
       setSources([data, ...sources]);
       setAddMode(null);
@@ -199,7 +217,7 @@ export default function BrandDetail() {
         }}>
           <div>
             <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px' }}>Brand Repo</div>
-            <div style={{ fontSize: '13px', color: '#666' }}>View all extracted brand guidelines visually</div>
+            <div style={{ fontSize: '13px', color: '#666' }}>View all extracted brand guidelines and assets</div>
           </div>
           <button
             onClick={() => navigate(`/dashboard/brand/${brandId}/repo`)}
@@ -353,6 +371,9 @@ export default function BrandDetail() {
                   >
                     <Link size={20} style={{ marginBottom: '8px' }} />
                     <div style={{ fontSize: '14px', fontWeight: '500' }}>From URL</div>
+                    <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                      Extracts content + downloads assets
+                    </div>
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
@@ -367,6 +388,9 @@ export default function BrandDetail() {
                   >
                     <Upload size={20} style={{ marginBottom: '8px' }} />
                     <div style={{ fontSize: '14px', fontWeight: '500' }}>Upload File</div>
+                    <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                      PDF, TXT, MD, DOCX
+                    </div>
                   </button>
                   <input
                     ref={fileInputRef}
@@ -400,7 +424,7 @@ export default function BrandDetail() {
                     type="url"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://..."
+                    placeholder="https://brand.com/guidelines"
                     style={{
                       flex: 1,
                       padding: '12px 14px',
@@ -426,6 +450,10 @@ export default function BrandDetail() {
                   >
                     Add
                   </button>
+                </div>
+                <div style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
+                  <Image size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                  Will automatically download logos, images, fonts, and other assets
                 </div>
               </>
             )}
@@ -574,4 +602,3 @@ export default function BrandDetail() {
     </div>
   );
 }
-
