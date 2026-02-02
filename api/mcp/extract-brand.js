@@ -59,7 +59,24 @@ Extract ACTUAL values from the content. Use empty arrays/strings for missing sec
 Content to analyze:
 `;
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '20mb',
+    },
+  },
+};
+
 export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -68,6 +85,22 @@ export default async function handler(req, res) {
 
   if (!content && !base64Data) {
     return res.status(400).json({ error: 'Content or base64Data is required' });
+  }
+
+  // Check if base64 data is too large (Anthropic has limits)
+  if (base64Data) {
+    const sizeInMB = (base64Data.length * 0.75) / (1024 * 1024);
+    if (sizeInMB > 32) {
+      return res.status(400).json({ 
+        error: `PDF too large (${sizeInMB.toFixed(1)}MB). Maximum size is 32MB. Please compress your PDF and try again.` 
+      });
+    }
+  }
+
+  // Check for API key
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('ANTHROPIC_API_KEY not configured');
+    return res.status(500).json({ error: 'Server configuration error: API key not set' });
   }
 
   try {
@@ -91,6 +124,8 @@ export default async function handler(req, res) {
           }
         ];
 
+    console.log('Sending request to Anthropic API...');
+    
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -106,12 +141,26 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('Anthropic API error:', error);
-      return res.status(response.status).json({ error: 'Failed to extract brand data' });
+      const errorText = await response.text();
+      console.error('Anthropic API error:', response.status, errorText);
+      
+      // Parse error for better message
+      let errorMessage = 'Failed to extract brand data';
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error?.message) {
+          errorMessage = errorJson.error.message;
+        }
+      } catch (e) {
+        errorMessage = errorText || errorMessage;
+      }
+      
+      return res.status(response.status).json({ error: errorMessage });
     }
 
     const data = await response.json();
+    console.log('Received response from Anthropic');
+    
     const jsonText = data.content
       .filter(item => item.type === "text")
       .map(item => item.text)
@@ -119,13 +168,19 @@ export default async function handler(req, res) {
 
     const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const brandData = JSON.parse(jsonMatch[0]);
-      return res.json({ brandData });
+      try {
+        const brandData = JSON.parse(jsonMatch[0]);
+        return res.status(200).json({ brandData });
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        return res.status(500).json({ error: 'Failed to parse brand data from AI response' });
+      }
     }
     
-    res.status(500).json({ error: 'Failed to parse brand data from response' });
+    console.error('No JSON found in response:', jsonText.substring(0, 500));
+    return res.status(500).json({ error: 'No valid brand data found in AI response' });
   } catch (error) {
     console.error('Error extracting brand data:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
