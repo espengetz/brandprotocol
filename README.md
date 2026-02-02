@@ -100,7 +100,7 @@ Add to `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "my-brand": {
+    "brand": {
       "url": "https://your-app.vercel.app/api/mcp/your-brand-id"
     }
   }
