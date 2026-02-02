@@ -76,21 +76,64 @@ function combineSourcesIntoBrandData(brand, sources) {
   return combined;
 }
 
+// Extract brand ID from URL - handles both direct and rewritten paths
+function extractBrandId(request) {
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/').filter(Boolean);
+  
+  // Debug logging
+  console.log('Full URL:', request.url);
+  console.log('Pathname:', url.pathname);
+  console.log('Path parts:', pathParts);
+  
+  // Path should be like: ['api', 'mcp', 'brand-id'] or ['api', 'mcp', 'brand-id', 'mcp']
+  // Find the part after 'mcp' that looks like a UUID
+  const mcpIndex = pathParts.indexOf('mcp');
+  if (mcpIndex !== -1 && pathParts[mcpIndex + 1]) {
+    const potentialId = pathParts[mcpIndex + 1];
+    // Check if it's a UUID pattern or not 'mcp'
+    if (potentialId !== 'mcp' && potentialId !== '[brandId]') {
+      console.log('Extracted brandId:', potentialId);
+      return potentialId;
+    }
+  }
+  
+  // Fallback: get second-to-last if last is 'mcp', otherwise get last
+  const lastPart = pathParts[pathParts.length - 1];
+  if (lastPart === 'mcp' || lastPart === 'sse') {
+    const brandId = pathParts[pathParts.length - 2];
+    console.log('Extracted brandId (fallback 1):', brandId);
+    return brandId;
+  }
+  
+  console.log('Extracted brandId (fallback 2):', lastPart);
+  return lastPart;
+}
+
 async function getBrandData(brandId) {
+  console.log('Getting brand data for:', brandId);
+  console.log('Supabase URL:', process.env.SUPABASE_URL ? 'SET' : 'NOT SET');
+  console.log('Supabase Key:', process.env.SUPABASE_SERVICE_KEY ? 'SET' : 'NOT SET');
+  
   const { data: brand, error: brandError } = await supabase
     .from('brands')
     .select('*')
     .eq('id', brandId)
     .single();
 
+  console.log('Brand query result:', { brand, error: brandError });
+
   if (brandError || !brand) {
+    console.log('Brand not found or error:', brandError);
     return null;
   }
 
-  const { data: sources } = await supabase
+  const { data: sources, error: sourcesError } = await supabase
     .from('brand_sources')
     .select('*')
     .eq('brand_id', brandId);
+
+  console.log('Sources query result:', { sourcesCount: sources?.length, error: sourcesError });
 
   return combineSourcesIntoBrandData(brand, sources || []);
 }
@@ -268,14 +311,12 @@ function createBrandMcpHandler(brandId, brandKnowledge) {
   );
 }
 
-// Web API handler for Vercel
-export async function GET(request) {
-  const url = new URL(request.url);
-  const pathParts = url.pathname.split('/').filter(Boolean);
-  const brandId = pathParts[pathParts.length - 1];
+// Handler function
+async function handleRequest(request) {
+  const brandId = extractBrandId(request);
 
-  if (!brandId || brandId === 'mcp') {
-    return new Response(JSON.stringify({ error: 'Brand ID required' }), {
+  if (!brandId || brandId === 'mcp' || brandId === '[brandId]') {
+    return new Response(JSON.stringify({ error: 'Brand ID required', extracted: brandId }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -284,7 +325,7 @@ export async function GET(request) {
   const brandKnowledge = await getBrandData(brandId);
   
   if (!brandKnowledge) {
-    return new Response(JSON.stringify({ error: 'Brand not found' }), {
+    return new Response(JSON.stringify({ error: 'Brand not found', brandId }), {
       status: 404,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -292,33 +333,17 @@ export async function GET(request) {
 
   const handler = createBrandMcpHandler(brandId, brandKnowledge);
   return handler(request);
+}
+
+// Web API handlers for Vercel
+export async function GET(request) {
+  return handleRequest(request);
 }
 
 export async function POST(request) {
-  const url = new URL(request.url);
-  const pathParts = url.pathname.split('/').filter(Boolean);
-  const brandId = pathParts[pathParts.length - 1];
-
-  if (!brandId || brandId === 'mcp') {
-    return new Response(JSON.stringify({ error: 'Brand ID required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  const brandKnowledge = await getBrandData(brandId);
-  
-  if (!brandKnowledge) {
-    return new Response(JSON.stringify({ error: 'Brand not found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  const handler = createBrandMcpHandler(brandId, brandKnowledge);
-  return handler(request);
+  return handleRequest(request);
 }
 
 export async function DELETE(request) {
-  return GET(request);
+  return handleRequest(request);
 }
