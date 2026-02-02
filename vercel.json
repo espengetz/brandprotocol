@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "api/mcp/[brandId].js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/mcp/:brandId", "destination": "/api/mcp/[brandId]" },
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}
