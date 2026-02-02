@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Server, ArrowLeft, Plus, Upload, Link, FileText, Trash2, Copy, Check, Loader2, X } from 'lucide-react';
+import { Server, ArrowLeft, Plus, Upload, Link, FileText, Trash2, Copy, Check, Loader2, X, Eye } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getBrand, getBrandSources, addBrandSource, deleteBrandSource, uploadFile } from '../lib/supabase';
-import { extractFromUrl, extractBrandData, extractTextFromContent, readFileAsBase64, readFileAsText } from '../lib/ai';
+import { extractFromUrl, extractBrandData, readFileAsBase64, readFileAsText } from '../lib/ai';
 
 export default function BrandDetail() {
   const { brandId } = useParams();
@@ -123,7 +123,7 @@ export default function BrandDetail() {
 
   const getMcpUrl = () => {
     const baseUrl = window.location.origin;
-    return `${baseUrl}/api/mcp/${brandId}`;
+    return `${baseUrl}/api/mcp/${brandId}/mcp`;
   };
 
   if (loading) {
@@ -186,6 +186,42 @@ export default function BrandDetail() {
         margin: '0 auto',
         padding: '40px 24px'
       }}>
+        {/* View Brand Repo Button */}
+        <div style={{
+          padding: '20px',
+          backgroundColor: '#fff',
+          border: '1px solid #e5e5e5',
+          borderRadius: '10px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px' }}>Brand Repo</div>
+            <div style={{ fontSize: '13px', color: '#666' }}>View all extracted brand guidelines visually</div>
+          </div>
+          <button
+            onClick={() => navigate(`/dashboard/brand/${brandId}/repo`)}
+            style={{
+              padding: '10px 16px',
+              backgroundColor: '#000',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Eye size={14} />
+            View Repo
+          </button>
+        </div>
+
         {/* MCP URL */}
         <div style={{
           padding: '20px',
@@ -538,3 +574,4 @@ export default function BrandDetail() {
     </div>
   );
 }
+
