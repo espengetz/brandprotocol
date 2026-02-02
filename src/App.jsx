@@ -5,6 +5,7 @@ import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import NewBrand from './pages/NewBrand';
 import BrandDetail from './pages/BrandDetail';
+import BrandRepo from './pages/BrandRepo';
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/new" element={<NewBrand />} />
           <Route path="/dashboard/brand/:brandId" element={<BrandDetail />} />
+          <Route path="/dashboard/brand/:brandId/repo" element={<BrandRepo />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
