@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
-    "@anthropic-ai/sdk": "^0.39.0"
+    "@anthropic-ai/sdk": "^0.39.0",
     "@supabase/supabase-js": "^2.39.0",
     "lucide-react": "^0.263.1",
     "mcp-handler": "^1.0.7",
