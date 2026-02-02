@@ -5,7 +5,9 @@
     }
   },
   "rewrites": [
+    { "source": "/api/mcp/:brandId/:path*", "destination": "/api/mcp/[brandId]" },
     { "source": "/api/mcp/:brandId", "destination": "/api/mcp/[brandId]" },
-    { "source": "/(.*)", "destination": "/" }
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/((?!api/).*)", "destination": "/" }
   ]
 }
