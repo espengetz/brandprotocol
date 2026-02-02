@@ -1,12 +1,6 @@
 {
   "functions": {
-    "api/mcp/[brandId].js": {
-      "maxDuration": 30
-    },
-    "api/extract-brand.js": {
-      "maxDuration": 60
-    },
-    "api/extract-url.js": {
+    "api/**/*.js": {
       "maxDuration": 60
     }
   },
