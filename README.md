@@ -1,12 +1,12 @@
-# BrandMCP
+# BrandProtocol
 
-Turn your brand guidelines into an AI tool. Create an MCP server that Claude, ChatGPT, and Cursor can connect to.
+Automatically train any AI agent on your brand. Create an MCP server that Claude, ChatGPT, and Cursor can connect to.
 
 ## Features
 
 - **Import brand guidelines** from URL or PDF
 - **AI extracts** colors, typography, voice, logo rules automatically
-- **Get an instant MCP URL** to connect to any AI assistant
+- **Get an instant MCP URL** that you can to connect to any AI assistant
 - **Add more knowledge** over time - upload additional docs, URLs, assets
 - **User accounts** to manage multiple brands
 
@@ -120,7 +120,3 @@ Add to your MCP settings:
   }
 }
 ```
-
-## License
-
-MIT
