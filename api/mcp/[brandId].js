@@ -23,7 +23,6 @@ function combineSourcesIntoBrandData(brand, sources) {
   for (const source of sources) {
     const content = source.content || {};
     
-    // Merge colors
     if (content.colors) {
       for (const [category, colors] of Object.entries(content.colors)) {
         if (colors && Array.isArray(colors)) {
@@ -35,23 +34,17 @@ function combineSourcesIntoBrandData(brand, sources) {
       }
     }
     
-    // Merge typography (later sources override)
     if (content.typography) {
       combined.typography = { ...combined.typography, ...content.typography };
     }
     
-    // Merge logo guidelines
     if (content.logo) {
       combined.logo = { ...combined.logo, ...content.logo };
       if (content.logo.donts) {
-        combined.logo.donts = [
-          ...(combined.logo.donts || []),
-          ...content.logo.donts
-        ];
+        combined.logo.donts = [...(combined.logo.donts || []), ...content.logo.donts];
       }
     }
     
-    // Merge voice
     if (content.voice) {
       combined.voice = {
         tone: [...(combined.voice.tone || []), ...(content.voice.tone || [])],
@@ -60,7 +53,6 @@ function combineSourcesIntoBrandData(brand, sources) {
       };
     }
     
-    // Merge messaging
     if (content.messaging) {
       combined.messaging = {
         taglines: [...(combined.messaging.taglines || []), ...(content.messaging.taglines || [])],
@@ -69,7 +61,6 @@ function combineSourcesIntoBrandData(brand, sources) {
       };
     }
 
-    // Update description if present
     if (content.description && !combined.description) {
       combined.description = content.description;
     }
@@ -78,7 +69,6 @@ function combineSourcesIntoBrandData(brand, sources) {
     }
   }
 
-  // Dedupe arrays
   combined.voice.tone = [...new Set(combined.voice.tone)];
   combined.voice.guidelines = [...new Set(combined.voice.guidelines)];
   combined.logo.donts = [...new Set(combined.logo.donts || [])];
@@ -86,14 +76,7 @@ function combineSourcesIntoBrandData(brand, sources) {
   return combined;
 }
 
-// Cache for brand data to avoid repeated DB calls
-const brandCache = new Map();
-
 async function getBrandData(brandId) {
-  if (brandCache.has(brandId)) {
-    return brandCache.get(brandId);
-  }
-
   const { data: brand, error: brandError } = await supabase
     .from('brands')
     .select('*')
@@ -109,31 +92,14 @@ async function getBrandData(brandId) {
     .select('*')
     .eq('brand_id', brandId);
 
-  const brandKnowledge = combineSourcesIntoBrandData(brand, sources || []);
-  brandCache.set(brandId, brandKnowledge);
-  
-  return brandKnowledge;
+  return combineSourcesIntoBrandData(brand, sources || []);
 }
 
-export default async function handler(req, res) {
-  // Extract brandId from URL
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const pathParts = url.pathname.split('/').filter(Boolean);
-  const brandId = pathParts[pathParts.length - 1];
-
-  if (!brandId || brandId === 'mcp') {
-    return res.status(400).json({ error: 'Brand ID required' });
-  }
-
-  const brandKnowledge = await getBrandData(brandId);
-  
-  if (!brandKnowledge) {
-    return res.status(404).json({ error: 'Brand not found' });
-  }
-
+// Create the handler function for a specific brand
+function createBrandMcpHandler(brandId, brandKnowledge) {
   const brandName = brandKnowledge.brandName;
 
-  const mcpHandler = createMcpHandler(
+  return createMcpHandler(
     (server) => {
       server.tool(
         'get_brand_guidelines',
@@ -297,10 +263,62 @@ export default async function handler(req, res) {
       version: '1.0.0' 
     },
     { 
-      basePath: `/api/mcp/${brandId}`,
-      verboseLogs: true
+      basePath: `/api/mcp/${brandId}`
     }
   );
+}
 
-  return mcpHandler(req, res);
+// Web API handler for Vercel
+export async function GET(request) {
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/').filter(Boolean);
+  const brandId = pathParts[pathParts.length - 1];
+
+  if (!brandId || brandId === 'mcp') {
+    return new Response(JSON.stringify({ error: 'Brand ID required' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const brandKnowledge = await getBrandData(brandId);
+  
+  if (!brandKnowledge) {
+    return new Response(JSON.stringify({ error: 'Brand not found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const handler = createBrandMcpHandler(brandId, brandKnowledge);
+  return handler(request);
+}
+
+export async function POST(request) {
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/').filter(Boolean);
+  const brandId = pathParts[pathParts.length - 1];
+
+  if (!brandId || brandId === 'mcp') {
+    return new Response(JSON.stringify({ error: 'Brand ID required' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const brandKnowledge = await getBrandData(brandId);
+  
+  if (!brandKnowledge) {
+    return new Response(JSON.stringify({ error: 'Brand not found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const handler = createBrandMcpHandler(brandId, brandKnowledge);
+  return handler(request);
+}
+
+export async function DELETE(request) {
+  return GET(request);
 }
