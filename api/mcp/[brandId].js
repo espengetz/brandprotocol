@@ -86,13 +86,12 @@ function combineSourcesIntoBrandData(brand, sources) {
   return combined;
 }
 
-export default async function handler(req, res) {
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const pathParts = url.pathname.split('/').filter(Boolean);
-  const brandId = pathParts[pathParts.length - 1];
+// Cache for brand data to avoid repeated DB calls
+const brandCache = new Map();
 
-  if (!brandId || brandId === 'mcp') {
-    return res.status(400).json({ error: 'Brand ID required' });
+async function getBrandData(brandId) {
+  if (brandCache.has(brandId)) {
+    return brandCache.get(brandId);
   }
 
   const { data: brand, error: brandError } = await supabase
@@ -102,7 +101,7 @@ export default async function handler(req, res) {
     .single();
 
   if (brandError || !brand) {
-    return res.status(404).json({ error: 'Brand not found' });
+    return null;
   }
 
   const { data: sources } = await supabase
@@ -111,6 +110,27 @@ export default async function handler(req, res) {
     .eq('brand_id', brandId);
 
   const brandKnowledge = combineSourcesIntoBrandData(brand, sources || []);
+  brandCache.set(brandId, brandKnowledge);
+  
+  return brandKnowledge;
+}
+
+export default async function handler(req, res) {
+  // Extract brandId from URL
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const pathParts = url.pathname.split('/').filter(Boolean);
+  const brandId = pathParts[pathParts.length - 1];
+
+  if (!brandId || brandId === 'mcp') {
+    return res.status(400).json({ error: 'Brand ID required' });
+  }
+
+  const brandKnowledge = await getBrandData(brandId);
+  
+  if (!brandKnowledge) {
+    return res.status(404).json({ error: 'Brand not found' });
+  }
+
   const brandName = brandKnowledge.brandName;
 
   const mcpHandler = createMcpHandler(
@@ -169,7 +189,7 @@ export default async function handler(req, res) {
       server.tool(
         'get_brand_color',
         `Get ${brandName} brand colors by category`,
-        { category: z.enum(["primary", "secondary", "accent", "neutral"]) },
+        { category: z.enum(["primary", "secondary", "accent", "neutral"]).describe("Color category to retrieve") },
         async ({ category }) => {
           const colors = brandKnowledge.colors[category];
           if (!colors?.length) {
@@ -184,8 +204,8 @@ export default async function handler(req, res) {
         'check_brand_compliance',
         `Check if a color or font complies with ${brandName} guidelines`,
         {
-          type: z.enum(["color", "font"]),
-          value: z.string()
+          type: z.enum(["color", "font"]).describe("Type of element to check"),
+          value: z.string().describe("The color hex code or font name to check")
         },
         async ({ type, value }) => {
           if (type === "color") {
@@ -272,8 +292,14 @@ export default async function handler(req, res) {
         }
       );
     },
-    { name: `${brandName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-brand-mcp`, version: '1.0.0' },
-    { basePath: `/api/mcp/${brandId}` }
+    { 
+      name: `${brandName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-brand-mcp`, 
+      version: '1.0.0' 
+    },
+    { 
+      basePath: `/api/mcp/${brandId}`,
+      verboseLogs: true
+    }
   );
 
   return mcpHandler(req, res);
